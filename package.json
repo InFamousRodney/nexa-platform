@@ -1,0 +1,29 @@
+{
+  "name": "nexa-platform-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEXA Salesforce Metadata Reasoning Platform",
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build:frontend": "pnpm --filter frontend build",
+    "start:supabase": "cd apps/supabase && supabase start",
+    "stop:supabase": "cd apps/supabase && supabase stop",
+    "reset:db": "cd apps/supabase && supabase db reset",
+    "generate:migration": "cd apps/supabase && supabase migration new",
+    "lint": "pnpm --recursive run lint",
+    "test": "pnpm --recursive run test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8.0.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.0.0",
+    "postcss": "^8.5.3",
+    "prettier": "^3.0.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.0.0"
+  }
+}

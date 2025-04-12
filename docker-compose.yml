@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5 # We gebruiken de laatste stabiele versie 5.x
+    container_name: nexa_neo4j_local # Een herkenbare naam voor de container
+    restart: unless-stopped # Herstart automatisch tenzij je hem handmatig stopt
+    ports:
+      - "7474:7474" # Poort voor de Neo4j Browser (HTTP)
+      - "7687:7687" # Poort voor het Bolt protocol (hoe onze app verbindt)
+    volumes:
+      # Dit zorgt ervoor dat je graph data bewaard blijft, zelfs als je de container stopt/start
+      - nexa_neo4j_data:/data
+    environment:
+      # BELANGRIJK: Stel hier een wachtwoord in voor de 'neo4j' gebruiker!
+      # VERANDER 'wachtwoord123' in een ander, veilig wachtwoord.
+      NEO4J_AUTH: neo4j/Tonnie10!
+
+      # Optioneel: Accepteer de licentievoorwaarden (nodig voor sommige versies/features)
+      # NEO4J_ACCEPT_LICENSE_AGREEMENT: 'yes'
+
+      # Optioneel: Meer geheugen toewijzen als je grote graphs verwacht
+      # NEO4J_HEAP_MEMORY: 2G # Bijvoorbeeld 2 Gigabyte
+
+volumes:
+  # Definieert de 'named volume' die we hierboven gebruiken
+  nexa_neo4j_data:
+    driver: local
