@@ -29,19 +29,19 @@ Sub-Milestone 2.2: Authenticatie Flow - Backend
 - [x] Retourneer { authorizationUrl: "..." } als JSON.
 - [x] Implementeer error handling.
 
-[ ] Taak 2.2.3 (Code - API): Creëer de map en het index.ts bestand voor de sfdc-auth-callback functie.
+[x] Taak 2.2.3 (Code - API): Creëer de map en het index.ts bestand voor de sfdc-auth-callback functie.
 
-[ ] Taak 2.2.4 (Code - API): Implementeer de GET /v1/sfdc-auth-callback API endpoint in index.ts:
+[x] Taak 2.2.4 (Code - API): Implementeer de GET /v1/sfdc-auth-callback API endpoint in index.ts:
 
-- [ ] Haal code en state uit de query parameters.
-- [ ] Validatie: Verifieer de ontvangen state tegen de opgeslagen state. Haal de bijbehorende code_verifier op. Gooi error als state ongeldig is.
-- [ ] Token Exchange: Roep Salesforce token endpoint aan (fetch) met grant_type=authorization_code, code, client_id, client_secret, redirect_uri, en code_verifier.
-- [ ] Token Verwerking: Haal access_token, refresh_token, instance_url, id (Salesforce user/org ID URL) uit de Salesforce response.
-- [ ] Encryptie: Gebruik encryptData (uit Taak 2.1.3) om access_token en refresh_token te versleutelen.
-- [ ] Opslag: Sla de nieuwe connectie op in salesforce_connections.
-- [ ] Opschonen: Verwijder de tijdelijke state en code_verifier.
-- [ ] Redirect: Stuur een 302 Redirect naar de frontend (bv. /settings?connect=success).
-- [ ] Implementeer robuuste error handling.
+- [x] Haal code en state uit de query parameters.
+- [x] Validatie: Verifieer de ontvangen state tegen de opgeslagen state. Haal de bijbehorende code_verifier op. Gooi error als state ongeldig is.
+- [x] Token Exchange: Roep Salesforce token endpoint aan (fetch) met grant_type=authorization_code, code, client_id, client_secret, redirect_uri, en code_verifier.
+- [x] Token Verwerking: Haal access_token, refresh_token, instance_url, id (Salesforce user/org ID URL) uit de Salesforce response.
+- [x] Encryptie: Gebruik encryptData (uit Taak 2.1.3) om access_token en refresh_token te versleutelen.
+- [x] Opslag: Sla de nieuwe connectie op in salesforce_connections.
+- [x] Opschonen: Verwijder de tijdelijke state en code_verifier.
+- [x] Redirect: Stuur een 302 Redirect naar de frontend (bv. /settings?connect=success).
+- [x] Implementeer robuuste error handling.
 
 Sub-Milestone 2.3: Authenticatie Flow - Frontend
 
@@ -56,3 +56,10 @@ Sub-Milestone 2.4: Testen & Documentatie
 [ ] Taak 2.4.2 (Docs): Werk 05_API_Specificaties.md bij met de details van de geïmplementeerde /sfdc-auth-initiate en /sfdc-auth-callback endpoints.
 
 [ ] Taak 2.4.3 (Docs): Documenteer de setup van de Salesforce Connected App en de benodigde Supabase Secrets in 06_Status_POT.md of een README.md in apps/supabase.
+
+Notities:
+- Implementatie gebruikt AES-GCM voor token encryptie met een 32-byte sleutel
+- PKCE flow geïmplementeerd voor extra beveiliging
+- Uitgebreide error handling en logging toegevoegd
+- Test suite dekt alle belangrijke scenario's
+- Frontend integratie nog nodig voor volledige functionaliteit
