@@ -14,6 +14,7 @@ apps/*/.next
 # Supabase local secrets
 apps/supabase/.supabase/config.toml
 apps/supabase/.env
+supabase/.env
 
 # Frontend local secrets
 apps/frontend/.env
