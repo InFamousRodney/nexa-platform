@@ -22,6 +22,25 @@ services:
       # Optioneel: Meer geheugen toewijzen als je grote graphs verwacht
       # NEO4J_HEAP_MEMORY: 2G # Bijvoorbeeld 2 Gigabyte
 
+  supabase:
+    image: supabase/postgres:latest
+    container_name: nexa_supabase_local
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # Postgres
+      - "54321:54321"  # Supabase Studio
+      - "54322:54322"  # Supabase Auth
+      - "54323:54323"  # Supabase Storage
+      - "54324:54324"  # Supabase Edge Functions
+    environment:
+      POSTGRES_PASSWORD: Tonnie10!
+      JWT_SECRET: your-super-secret-jwt-token-with-at-least-32-characters-long
+      ANON_KEY: your-super-secret-anon-key
+      SERVICE_ROLE_KEY: your-super-secret-service-role-key
+    volumes:
+      - ./apps/supabase/supabase:/supabase
+      - ./apps/supabase/seed.sql:/docker-entrypoint-initdb.d/seed.sql
+
 volumes:
   # Definieert de 'named volume' die we hierboven gebruiken
   nexa_neo4j_data:

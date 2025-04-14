@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Github, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabaseClient } from "@/lib/supabaseClient";
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -25,15 +25,19 @@ export default function Auth() {
 
     try {
       if (authMode === "login") {
-        // Mock login - would call Supabase auth in a real app
-        console.log("Logging in with:", { email, password });
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+
         toast({
           title: "Login successful",
           description: "Welcome back to NEXA!",
         });
-        setTimeout(() => {
-          navigate("/");
-        }, 1000);
+        
+        navigate("/");
       } else if (authMode === "register") {
         if (password !== confirmPassword) {
           toast({
@@ -45,35 +49,39 @@ export default function Auth() {
           return;
         }
         
-        // Mock registration - would call Supabase auth in a real app
-        console.log("Registering with:", { email, password });
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+
         toast({
           title: "Registration successful",
           description: "Welcome to NEXA! Please check your email to confirm your account.",
         });
-        setTimeout(() => {
-          setAuthMode("login");
-          setIsLoading(false);
-        }, 1000);
+        
+        setAuthMode("login");
       } else if (authMode === "reset") {
-        // Mock password reset - would call Supabase auth in a real app
-        console.log("Resetting password for:", email);
+        const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email);
+
+        if (error) throw error;
+
         toast({
           title: "Reset instructions sent",
           description: "Please check your email for password reset instructions.",
         });
-        setTimeout(() => {
-          setAuthMode("login");
-          setIsLoading(false);
-        }, 1000);
+        
+        setAuthMode("login");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Auth error:", error);
       toast({
         title: "Error",
-        description: "An error occurred during authentication. Please try again.",
+        description: error.message || "An error occurred during authentication. Please try again.",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
