@@ -1,5 +1,5 @@
 import { supabaseClient } from '../supabaseClient';
-import { SalesforceConnection } from '../types';
+import { SalesforceConnection, SFAuthInitiateResponse, SFAuthError } from '../types';
 import { getUrlParam } from '../utils';
 
 export async function fetchSalesforceConnections(): Promise<SalesforceConnection[]> {
@@ -54,14 +54,39 @@ export async function deleteSalesforceConnection(id: string): Promise<void> {
   }
 }
 
-export async function initiateSalesforceAuth(): Promise<{ authorizationUrl: string }> {
-  const { data, error } = await supabaseClient.functions.invoke('sfdc-auth-initiate');
+export async function initiateSalesforceAuth(): Promise<SFAuthInitiateResponse> {
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('sfdc-auth-initiate', {
+      method: 'POST',
+    });
 
-  if (error) {
-    throw new Error(`Failed to initiate Salesforce authentication: ${error.message}`);
+    if (error) {
+      throw {
+        errorCode: error.name || 'SUPABASE_ERROR',
+        errorMessage: error.message || 'Failed to initiate Salesforce authorization',
+      } satisfies SFAuthError;
+    }
+
+    if (!data?.authorizationUrl) {
+      throw {
+        errorCode: 'INVALID_RESPONSE',
+        errorMessage: 'Authorization URL not received from server',
+      } satisfies SFAuthError;
+    }
+
+    return data;
+  } catch (error) {
+    // If it's already an SFAuthError, rethrow it
+    if (typeof error === 'object' && error !== null && 'errorCode' in error && 'errorMessage' in error) {
+      throw error;
+    }
+
+    // Otherwise, wrap it in an SFAuthError
+    throw {
+      errorCode: 'UNEXPECTED_ERROR',
+      errorMessage: error instanceof Error ? error.message : 'An unexpected error occurred',
+    } satisfies SFAuthError;
   }
-
-  return data;
 }
 
 export type CallbackStatus = 'success' | 'error' | null;
@@ -74,4 +99,4 @@ export function checkCallbackStatus(): CallbackStatus {
   }
   
   return null;
-} 
+}

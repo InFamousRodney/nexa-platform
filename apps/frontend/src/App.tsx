@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +11,7 @@ import Visualization from "./pages/Visualization";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { AuthCallback } from "./components/salesforce/AuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -23,14 +23,20 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Main Routes */}
             <Route path="/" element={<Dashboard />} />
             <Route path="/snapshots" element={<Snapshots />} />
             <Route path="/metadata" element={<Metadata />} />
             <Route path="/analysis" element={<Analysis />} />
             <Route path="/visualization" element={<Visualization />} />
             <Route path="/settings" element={<Settings />} />
+            
+            {/* Authentication Routes */}
             <Route path="/auth" element={<Auth />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Salesforce OAuth callback handler - Processes the redirect after Salesforce authentication */}
+            <Route path="/auth/callback/salesforce" element={<AuthCallback />} />
+
+            {/* Catch-all route for 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

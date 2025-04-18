@@ -1,9 +1,9 @@
-
 import { SidebarLayout } from "@/components/Sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
+import { ConnectOrgButton } from "@/components/salesforce/ConnectOrgButton";
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<"profile" | "connections" | "appearance">("profile");
@@ -49,30 +49,7 @@ const Settings = () => {
                     </div>
                     
                     <div className="pt-4">
-                      <h3 className="text-lg font-medium mb-3">Change Password</h3>
-                      
-                      <div className="space-y-3">
-                        <div>
-                          <label htmlFor="currentPassword" className="block text-sm font-medium mb-1">Current Password</label>
-                          <input id="currentPassword" type="password" className="w-full px-3 py-2 rounded-md border border-input bg-background" />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="newPassword" className="block text-sm font-medium mb-1">New Password</label>
-                          <input id="newPassword" type="password" className="w-full px-3 py-2 rounded-md border border-input bg-background" />
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">Confirm New Password</label>
-                          <input id="confirmPassword" type="password" className="w-full px-3 py-2 rounded-md border border-input bg-background" />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="pt-4">
-                      <button className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md">
-                        Save Changes
-                      </button>
+                      <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90">Save Changes</button>
                     </div>
                   </div>
                 </div>
@@ -81,69 +58,22 @@ const Settings = () => {
               <TabsContent value="connections" className="h-full">
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-lg font-medium mb-3">Connected Salesforce Orgs</h3>
-                    
-                    <div className="border rounded-md overflow-hidden">
-                      <div className="grid grid-cols-5 gap-2 p-3 font-medium bg-muted text-muted-foreground text-sm">
-                        <div>Org ID</div>
-                        <div>Instance URL</div>
-                        <div>Connected On</div>
-                        <div>Status</div>
-                        <div>Actions</div>
-                      </div>
-                      
-                      <div className="grid grid-cols-5 gap-2 p-3 border-t">
-                        <div className="text-sm">00D1y000000ABCD</div>
-                        <div className="text-sm">https://na139.salesforce.com</div>
-                        <div className="text-sm">2023-04-15</div>
-                        <div className="text-sm">
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">Active</span>
-                        </div>
-                        <div className="text-sm flex gap-2">
-                          <button className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs">Test</button>
-                          <button className="bg-red-100 text-red-800 px-1.5 py-0.5 rounded text-xs">Disconnect</button>
-                        </div>
-                      </div>
-                    </div>
+                    <h2 className="text-lg font-semibold mb-2">Connected Salesforce Organizations</h2>
+                    <p className="text-muted-foreground mb-4">Manage your Salesforce org connections</p>
+                    <ConnectOrgButton />
                   </div>
                   
-                  <div>
-                    <button className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md">
-                      Connect New Salesforce Org
-                    </button>
+                  <div className="border rounded-lg divide-y">
+                    {/* Connection items will be rendered here */}
                   </div>
                 </div>
               </TabsContent>
               
               <TabsContent value="appearance" className="h-full">
-                <div className="max-w-md">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-medium mb-3">Theme</h3>
-                      <div className="flex items-center">
-                        <span className="mr-4">Toggle theme:</span>
-                        <ThemeToggle />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-3">Notification Preferences</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center">
-                          <input type="checkbox" id="emailNotifs" className="mr-2" defaultChecked />
-                          <label htmlFor="emailNotifs">Email Notifications</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input type="checkbox" id="analysisComplete" className="mr-2" defaultChecked />
-                          <label htmlFor="analysisComplete">Analysis Completion</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input type="checkbox" id="snapshotFailed" className="mr-2" defaultChecked />
-                          <label htmlFor="snapshotFailed">Snapshot Failures</label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div>
+                  <h2 className="text-lg font-semibold mb-2">Theme</h2>
+                  <p className="text-muted-foreground mb-4">Select your preferred theme</p>
+                  <ThemeToggle />
                 </div>
               </TabsContent>
             </div>

@@ -7,4 +7,13 @@ export interface SalesforceConnection {
   instance_url: string;
   created_at: string;
   updated_at: string;
-} 
+}
+
+export interface SFAuthInitiateResponse {
+  authorizationUrl: string;
+}
+
+export interface SFAuthError {
+  errorCode: string;
+  errorMessage: string;
+}
