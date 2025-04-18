@@ -2,11 +2,48 @@ import { SidebarLayout } from "@/components/Sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConnectOrgButton } from "@/components/salesforce/ConnectOrgButton";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<"profile" | "connections" | "appearance">("profile");
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const error = searchParams.get("error");
+    const orgId = searchParams.get("org_id");
+    const tab = searchParams.get("tab");
+
+    if (tab) {
+      setActiveTab(tab as "profile" | "connections" | "appearance");
+    }
+
+    if (status === "success" && orgId) {
+      toast({
+        title: "Connection Successful",
+        description: `Successfully connected Salesforce organization: ${orgId}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } else if (status === "error" && error) {
+      toast({
+        title: "Connection Failed",
+        description: error,
+        variant: "destructive",
+      });
+    }
+
+    // Clear URL parameters
+    if (status || error || orgId) {
+      navigate("/settings", { replace: true });
+    }
+  }, [searchParams, navigate, toast, queryClient]);
   
   return (
     <SidebarLayout>
