@@ -1,5 +1,6 @@
 import { supabaseClient } from '../supabaseClient';
 import { SalesforceConnection } from '../types';
+import { getUrlParam } from '../utils';
 
 export async function fetchSalesforceConnections(): Promise<SalesforceConnection[]> {
   const { data, error } = await supabaseClient
@@ -51,4 +52,26 @@ export async function deleteSalesforceConnection(id: string): Promise<void> {
   if (error) {
     throw new Error(`Failed to delete Salesforce connection: ${error.message}`);
   }
+}
+
+export async function initiateSalesforceAuth(): Promise<{ authorizationUrl: string }> {
+  const { data, error } = await supabaseClient.functions.invoke('sfdc-auth-initiate');
+
+  if (error) {
+    throw new Error(`Failed to initiate Salesforce authentication: ${error.message}`);
+  }
+
+  return data;
+}
+
+export type CallbackStatus = 'success' | 'error' | null;
+
+export function checkCallbackStatus(): CallbackStatus {
+  const status = getUrlParam('connect');
+  
+  if (status === 'success' || status === 'error') {
+    return status;
+  }
+  
+  return null;
 } 

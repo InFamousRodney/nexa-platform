@@ -1,0 +1,276 @@
+// Implementation (security.ts):
+import { encode, decode } from "https://deno.land/std@0.168.0/encoding/base64.ts"
+
+/**
+ * Encrypts data using AES-GCM encryption
+ * @param data The string data to encrypt
+ * @returns The encrypted data as a base64 string
+ */
+export async function encryptData(data: string): Promise<string> {
+  const key = Deno.env.get('TOKEN_ENCRYPTION_KEY')
+  if (!key) {
+    throw new Error('TOKEN_ENCRYPTION_KEY not found in environment variables')
+  }
+
+  // Convert the hex key to Uint8Array
+  const keyBytes = new Uint8Array(
+    key.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+  )
+
+  // Validate key length for AES-256
+  if (keyBytes.length !== 32) {
+    throw new Error(`Invalid TOKEN_ENCRYPTION_KEY length: expected 32 bytes, got ${keyBytes.length} bytes`)
+  }
+
+  // Generate a random IV
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+
+  // Import the key
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+  )
+
+  // Encrypt the data
+  const encodedData = new TextEncoder().encode(data)
+  const encryptedData = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv
+    },
+    cryptoKey,
+    encodedData
+  )
+
+  // Combine IV and encrypted data
+  const result = new Uint8Array(iv.length + new Uint8Array(encryptedData).length)
+  result.set(iv)
+  result.set(new Uint8Array(encryptedData), iv.length)
+
+  // Convert to base64 using the standard library's encode function
+  return encode(result.buffer)
+}
+
+export async function decryptData(encryptedData: string): Promise<string> {
+  const key = Deno.env.get('TOKEN_ENCRYPTION_KEY')
+  if (!key) {
+    throw new Error('TOKEN_ENCRYPTION_KEY not found in environment variables')
+  }
+
+  // Convert the hex key to Uint8Array
+  const keyBytes = new Uint8Array(
+    key.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+  )
+
+  // Validate key length for AES-256
+  if (keyBytes.length !== 32) {
+    throw new Error(`Invalid TOKEN_ENCRYPTION_KEY length: expected 32 bytes, got ${keyBytes.length} bytes`)
+  }
+
+  // Import the key
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt']
+  )
+
+  // Decode the base64 data
+  const combined = decode(encryptedData)
+
+  // Extract IV and encrypted data
+  const iv = combined.slice(0, 12)
+  const data = combined.slice(12)
+
+  // Decrypt the data
+  const decryptedData = await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv
+    },
+    cryptoKey,
+    data
+  )
+
+  // Return as string
+  return new TextDecoder().decode(decryptedData)
+} 
+// Tests (security.test.ts):
+import { assertEquals, assertRejects } from 'https://deno.land/std@0.168.0/testing/asserts.ts';
+import { encryptData, decryptData } from './security.ts';
+
+Deno.test('encryptData - should encrypt data using AES-GCM', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const data = 'test data';
+  const encrypted = await encryptData(data);
+
+  // Verify the encrypted data is a base64 string
+  assertEquals(typeof encrypted, 'string');
+  assertEquals(/^[A-Za-z0-9+/]+={0,2}$/.test(encrypted), true);
+  // Verify it's different from the input
+  assertEquals(encrypted === data, false);
+});
+
+Deno.test('encryptData - should throw error if encryption key is not set', async () => {
+  Deno.env.delete('TOKEN_ENCRYPTION_KEY');
+
+  await assertRejects(
+    () => encryptData('test data'),
+    Error,
+    'TOKEN_ENCRYPTION_KEY not found in environment variables'
+  );
+});
+
+Deno.test('encryptData - should produce different outputs for same input', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const data = 'test data';
+  const encrypted1 = await encryptData(data);
+  const encrypted2 = await encryptData(data);
+
+  assertEquals(encrypted1 === encrypted2, false);
+});
+
+Deno.test('encryptData - should handle different types of data', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const testCases = [
+    'simple string',
+    JSON.stringify({ complex: 'object', with: ['nested', 'data'] }),
+    'special characters: !@#$%^&*()',
+    'unicode: 😊🎉🌟',
+    'very long string '.repeat(1000)
+  ];
+
+  for (const data of testCases) {
+    const encrypted = await encryptData(data);
+    assertEquals(typeof encrypted, 'string');
+    assertEquals(/^[A-Za-z0-9+/]+={0,2}$/.test(encrypted), true);
+    assertEquals(encrypted === data, false);
+  }
+});
+
+Deno.test('encryptData - should handle empty string', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const encrypted = await encryptData('');
+  assertEquals(typeof encrypted, 'string');
+  assertEquals(/^[A-Za-z0-9+/]+={0,2}$/.test(encrypted), true);
+  assertEquals(encrypted === '', false);
+});
+
+Deno.test('encryptData and decryptData - should work together correctly', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const testCases = [
+    'test data',
+    JSON.stringify({ complex: 'object', with: ['nested', 'data'] }),
+    'special characters: !@#$%^&*()',
+    'unicode: 😊🎉🌟',
+    'very long string '.repeat(1000)
+  ];
+
+  for (const data of testCases) {
+    const encrypted = await encryptData(data);
+    const decrypted = await decryptData(encrypted);
+    assertEquals(decrypted, data);
+  }
+});
+
+Deno.test('encryptData - should throw error for invalid key length', async () => {
+  const testCases = [
+    { key: '0123456789abcdef', length: 8 },
+    { key: '0123456789abcdef0123456789abcdef', length: 16 },
+    { key: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', length: 40 }
+  ];
+
+  for (const { key, length } of testCases) {
+    Deno.env.set('TOKEN_ENCRYPTION_KEY', key);
+    await assertRejects(
+      () => encryptData('test data'),
+      Error,
+      `Invalid TOKEN_ENCRYPTION_KEY length: expected 32 bytes, got ${length} bytes`
+    );
+  }
+});
+
+Deno.test('decryptData - should throw error for invalid key length', async () => {
+  const testCases = [
+    { key: '0123456789abcdef', length: 8 },
+    { key: '0123456789abcdef0123456789abcdef', length: 16 },
+    { key: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', length: 40 }
+  ];
+
+  for (const { key, length } of testCases) {
+    Deno.env.set('TOKEN_ENCRYPTION_KEY', key);
+    await assertRejects(
+      () => decryptData('dGVzdCBkYXRh'), // base64 encoded "test data"
+      Error,
+      `Invalid TOKEN_ENCRYPTION_KEY length: expected 32 bytes, got ${length} bytes`
+    );
+  }
+});
+
+Deno.test('decryptData - should successfully decrypt encrypted data', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const testCases = [
+    'test data',
+    JSON.stringify({ complex: 'object', with: ['nested', 'data'] }),
+    'special characters: !@#$%^&*()',
+    'unicode: 😊🎉🌟',
+    'very long string '.repeat(1000)
+  ];
+
+  for (const data of testCases) {
+    const encrypted = await encryptData(data);
+    const decrypted = await decryptData(encrypted);
+    assertEquals(decrypted, data);
+  }
+});
+
+Deno.test('decryptData - should detect tampered data', async () => {
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', testKey);
+
+  const data = 'test data';
+  const encrypted = await encryptData(data);
+
+  // Tamper with the encrypted data by changing one character
+  const tampered = encrypted.slice(0, -1) + (encrypted.slice(-1) === 'A' ? 'B' : 'A');
+
+  await assertRejects(
+    () => decryptData(tampered),
+    Error,
+    'Failed to decode base64'
+  );
+});
+
+Deno.test('decryptData - should reject data encrypted with different key', async () => {
+  // First key for encryption
+  const key1 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', key1);
+  const data = 'test data';
+  const encrypted = await encryptData(data);
+
+  // Second key for decryption attempt
+  const key2 = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+  Deno.env.set('TOKEN_ENCRYPTION_KEY', key2);
+
+  await assertRejects(
+    () => decryptData(encrypted),
+    Error,
+    'Decryption failed'
+  );
+}); 
