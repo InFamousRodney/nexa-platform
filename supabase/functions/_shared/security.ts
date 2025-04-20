@@ -1,4 +1,4 @@
-import { encode as base64Encode, decode as base64Decode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
+import { encode as base64Encode, decode as base64Decode } from "std/encoding/base64.ts";
 
 const ALGORITHM = 'AES-GCM';
 const IV_LENGTH_BYTES = 12;
@@ -25,103 +25,91 @@ async function getOrCreateCryptoKey(): Promise<CryptoKey> {
     return cachedCryptoKey;
   }
 
-  const base64Key = Deno.env.get('TOKEN_ENCRYPTION_KEY');
-  if (!base64Key) {
+  const key = Deno.env.get('TOKEN_ENCRYPTION_KEY');
+  if (!key) {
     throw new Error('TOKEN_ENCRYPTION_KEY environment variable is not set');
   }
 
-  try {
-    // Convert base64 key to Uint8Array
-    const keyData = base64Decode(base64Key);
+  // Convert base64 key to bytes
+  const keyBytes = base64Decode(key);
 
-    // Import the key
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: ALGORITHM },
-      false, // not extractable
-      ['encrypt', 'decrypt']
-    );
+  // Import the key
+  cachedCryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: ALGORITHM },
+    false,
+    ['encrypt', 'decrypt']
+  );
 
-    cachedCryptoKey = key;
-    return key;
-  } catch (error) {
-    throw new Error(`Failed to import encryption key: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  return cachedCryptoKey;
 }
 
 /**
  * Encrypts a string using AES-GCM
  * @param data - The string to encrypt
- * @returns Promise resolving to an EncryptedResult containing the Base64 encoded ciphertext and IV
+ * @returns Promise resolving to a base64 encoded string containing both IV and ciphertext
  * @throws {Error} If encryption fails
  */
-export async function encryptData(data: string): Promise<EncryptedResult> {
-  try {
-    const key = await getOrCreateCryptoKey();
-    
-    // Generate a random IV
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-    
-    // Encrypt the data
-    const encoder = new TextEncoder();
-    const encodedData = encoder.encode(data);
-    
-    const encryptedData = await crypto.subtle.encrypt(
-      {
-        name: ALGORITHM,
-        iv
-      },
-      key,
-      encodedData
-    );
+export async function encryptData(data: string): Promise<string> {
+  const key = await getOrCreateCryptoKey();
+  
+  // Generate random IV
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
+  
+  // Encrypt
+  const encoder = new TextEncoder();
+  const dataBytes = encoder.encode(data);
+  
+  const ciphertext = await crypto.subtle.encrypt(
+    {
+      name: ALGORITHM,
+      iv
+    },
+    key,
+    dataBytes
+  );
 
-    // Convert results to base64
-    const ciphertext = base64Encode(new Uint8Array(encryptedData));
-    const ivBase64 = base64Encode(iv);
+  // Encode both IV and ciphertext to base64
+  const ivBase64 = base64Encode(iv);
+  const ciphertextBase64 = base64Encode(new Uint8Array(ciphertext));
 
-    return {
-      ciphertext,
-      iv: ivBase64
-    };
-  } catch (error) {
-    throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  // Combine IV and ciphertext with a delimiter
+  return `${ivBase64}.${ciphertextBase64}`;
 }
 
 /**
- * Decrypts an encrypted result using AES-GCM
- * @param encryptedResult - The EncryptedResult containing the ciphertext and IV
+ * Decrypts an encrypted string using AES-GCM
+ * @param encryptedData - The base64 encoded string containing IV and ciphertext
  * @returns Promise resolving to the decrypted string
  * @throws {Error} If decryption fails (e.g., due to tampering or invalid key)
  */
-export async function decryptData(encryptedResult: EncryptedResult): Promise<string> {
-  try {
-    const key = await getOrCreateCryptoKey();
-    
-    // Convert base64 strings back to Uint8Arrays
-    const ciphertext = base64Decode(encryptedResult.ciphertext);
-    const iv = base64Decode(encryptedResult.iv);
+export async function decryptData(encryptedData: string): Promise<string> {
+  const key = await getOrCreateCryptoKey();
 
-    // Decrypt the data
-    const decryptedData = await crypto.subtle.decrypt(
-      {
-        name: ALGORITHM,
-        iv
-      },
-      key,
-      ciphertext
-    );
-
-    // Convert the decrypted data back to a string
-    const decoder = new TextDecoder();
-    return decoder.decode(decryptedData);
-  } catch (error) {
-    if (error instanceof DOMException) {
-      throw new Error('Decryption failed: Data may have been tampered with or encryption key is invalid');
-    }
-    throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  // Split IV and ciphertext
+  const [ivBase64, ciphertextBase64] = encryptedData.split('.');
+  if (!ivBase64 || !ciphertextBase64) {
+    throw new Error('Invalid encrypted data format');
   }
+
+  // Decode base64
+  const iv = base64Decode(ivBase64);
+  const ciphertext = base64Decode(ciphertextBase64);
+
+  // Decrypt
+  const decrypted = await crypto.subtle.decrypt(
+    {
+      name: ALGORITHM,
+      iv
+    },
+    key,
+    ciphertext
+  );
+
+  // Convert bytes to string
+  const decoder = new TextDecoder();
+  return decoder.decode(decrypted);
 }
 
 /**
@@ -129,21 +117,16 @@ export async function decryptData(encryptedResult: EncryptedResult): Promise<str
  * @throws {Error} If the test fails
  */
 export async function testEncryptionDecryption(): Promise<void> {
-  const testData = 'Test string with special chars: !@#$%^&*()';
+  const testData = 'Test data to encrypt';
   
-  // Test encryption
+  // Encrypt
   const encrypted = await encryptData(testData);
   
-  // Verify encrypted result format
-  if (!encrypted.ciphertext || !encrypted.iv) {
-    throw new Error('Encryption test failed: Missing required encrypted result properties');
-  }
-  
-  // Test decryption
+  // Decrypt
   const decrypted = await decryptData(encrypted);
   
-  // Verify decrypted data matches original
+  // Verify
   if (decrypted !== testData) {
-    throw new Error('Encryption test failed: Decrypted data does not match original');
+    throw new Error('Encryption/decryption test failed: data mismatch');
   }
-} 
+}

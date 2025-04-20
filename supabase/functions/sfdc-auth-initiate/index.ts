@@ -1,187 +1,131 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { corsHeaders } from '../_shared/cors.ts';
-import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
-import { generateRandomString } from './_shared/helpers.ts';
-import { encryptData } from './_shared/security.ts';
+/// <reference types="https://deno.land/std@0.208.0/http/server.ts" />
 
-// Constants for environment variable names
-export const ENV_VARS = {
-  SALESFORCE_CLIENT_ID: 'SALESFORCE_CLIENT_ID',
-  SALESFORCE_CLIENT_SECRET: 'SALESFORCE_CLIENT_SECRET',
-  SALESFORCE_REDIRECT_URI: 'SALESFORCE_REDIRECT_URI',
-  SUPABASE_URL: 'API_EXTERNAL_URL',
-  SUPABASE_ANON_KEY: 'API_ANON_KEY',
-  SUPABASE_SERVICE_ROLE_KEY: 'API_SERVICE_KEY',
-  TOKEN_ENCRYPTION_KEY: 'TOKEN_ENCRYPTION_KEY'
-} as const;
+import { serve } from "std/http/server.ts";
+import { type SupabaseClient } from "@supabase/supabase-js";
+import { corsHeaders } from "@/shared/cors";
+import { generateRandomString } from "@/shared/utils/crypto.ts";
+import { encryptData } from "@/shared/security.ts";
+import { SALESFORCE, ENV_VARS } from "@/shared/constants/salesforce.ts";
+import { createSupabaseClient, requireAuth } from "@/shared/utils/supabase.ts";
 
-// Constants for other values
-export const CONSTANTS = {
-  OAUTH_STATES_TABLE: 'oauth_states',
-  SALESFORCE_AUTH_URL: 'https://login.salesforce.com/services/oauth2/authorize',
-  STATE_EXPIRY_MINUTES: 10,
-  SCOPES: 'api refresh_token'
-} as const;
-
-// Main request handler
-export async function handleRequest(req: Request, customCreateClient = createClient): Promise<Response> {
+export async function handleRequest(req: Request, customClient?: SupabaseClient): Promise<Response> {
   // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get environment variables
-    const SALESFORCE_CLIENT_ID = Deno.env.get('SALESFORCE_CLIENT_ID');
-    const SALESFORCE_CLIENT_SECRET = Deno.env.get('SALESFORCE_CLIENT_SECRET');
-    const SUPABASE_URL = Deno.env.get('API_EXTERNAL_URL');
-    const SUPABASE_ANON_KEY = Deno.env.get('API_ANON_KEY');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('API_SERVICE_KEY');
-    const SALESFORCE_REDIRECT_URI = Deno.env.get('SALESFORCE_REDIRECT_URI');
-
-    // Validate environment variables
-    const missingVars = Object.values(ENV_VARS).filter(
-      (envVar) => !Deno.env.get(envVar)
-    );
-
-    if (missingVars.length > 0) {
-      return new Response(
-        JSON.stringify({
-          error: `Missing required environment variables: ${missingVars.join(', ')}`
-        }),
-        { status: 400, headers: corsHeaders }
-      );
+    // Check auth first
+    const authError = await requireAuth(req);
+    if (authError) {
+      return authError;
     }
 
-    // Validate request method
-    if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ error: 'Method not allowed' }),
-        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Get or create Supabase client
+    const supabase = customClient ?? createSupabaseClient(req, { useServiceRole: true });
 
-    // Get authorization header
-    const authHeader = req.headers.get('Authorization');
+    // Define core OAuth parameters
+    const redirectUri = `${Deno.env.get(ENV_VARS.PUBLIC_URL)}/sfdc-auth-callback`;
+    const oauthStateParam = generateRandomString(32);
+    const codeVerifier = generateRandomString(128);
+
+    // Generate code challenge from the code verifier
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    // Create data to encrypt (only the essential secret data)
+    const dataToEncrypt = {
+      codeVerifier
+    };
+
+    // Encrypt sensitive data
+    const encryptedDataBlob = await encryptData(JSON.stringify(dataToEncrypt));
+
+    // Store state in database for validation
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error("Missing Authorization header");
     }
 
-    // Extract token
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user?.id) {
+      throw new Error("User not found");
+    }
 
-    // Initialize Supabase client for user authentication
-    const supabaseClient = customCreateClient(
-      SUPABASE_URL ?? '',
-      SUPABASE_ANON_KEY ?? '',
+    const now = new Date();
+    const { error: storeError } = await supabase
+      .from("oauth_states")
+      .insert([
+        {
+          state: oauthStateParam,
+          encrypted_data: encryptedDataBlob,
+          user_id: user.id,
+          created_at: now.toISOString(),
+          expires_at: new Date(now.getTime() + SALESFORCE.STATE_EXPIRY_MINUTES * 60 * 1000).toISOString(),
+        },
+      ]);
+
+    if (storeError) {
+      console.error("Error storing state:", storeError);
+      throw new Error("Failed to store OAuth state");
+    }
+
+    // Build authorization URL with the simple state parameter
+    const authUrl = new URL(SALESFORCE.AUTH_URL);
+    authUrl.searchParams.set("client_id", Deno.env.get(ENV_VARS.SFDC_CLIENT_ID) ?? "");
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("state", oauthStateParam);
+    authUrl.searchParams.set("code_challenge", codeChallenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("scope", SALESFORCE.SCOPES.join(" "));
+
+    return new Response(
+      JSON.stringify({ url: authUrl.toString() }),
       {
-        global: {
-          headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
         },
       }
     );
-
-    // Validate JWT and get user
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Initialize Supabase Admin client (using Service Role Key for elevated privileges)
-    const supabaseAdminClient = customCreateClient(
-      SUPABASE_URL ?? '',
-      SUPABASE_SERVICE_ROLE_KEY ?? ''
-    );
-
-    // Generate PKCE parameters
-    const codeVerifier = generateRandomString(128);
-    const state = generateRandomString(32);
-
-    // Encrypt the code_verifier before storing
-    const encryptedVerifier = await encryptData(codeVerifier);
-
-    // Insert into database
-    const { error: insertError } = await supabaseAdminClient
-      .from(CONSTANTS.OAUTH_STATES_TABLE)
-      .insert({
-        state,
-        code_verifier: encryptedVerifier.ciphertext,
-        code_verifier_iv: encryptedVerifier.iv,
-        user_id: user.id,
-        expires_at: new Date(Date.now() + CONSTANTS.STATE_EXPIRY_MINUTES * 60 * 1000).toISOString()
-      });
-
-    if (insertError) {
-      console.error('Database error:', insertError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to store OAuth state' }),
-        { status: 500, headers: corsHeaders }
-      );
-    }
-
-    // Build authorization URL
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: Deno.env.get(ENV_VARS.SALESFORCE_CLIENT_ID)!,
-      redirect_uri: Deno.env.get(ENV_VARS.SALESFORCE_REDIRECT_URI)!,
-      scope: CONSTANTS.SCOPES,
-      state,
-      code_challenge: await generateCodeChallenge(codeVerifier),
-      code_challenge_method: 'S256'
-    });
-
-    const authorizationUrl = `${CONSTANTS.SALESFORCE_AUTH_URL}?${params.toString()}`;
-
-    return new Response(
-      JSON.stringify({ authorizationUrl }),
-      { status: 200, headers: corsHeaders }
-    );
-
   } catch (error) {
-    console.error('Error:', error);
+    console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
-}
-
-// Helper function to generate a random string
-function generateRandomString(length: number): string {
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-// Helper function to calculate SHA-256 hash
-async function sha256(message: string): Promise<Uint8Array> {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  return new Uint8Array(hashBuffer);
-}
-
-// Helper function to base64url encode
-function base64urlEncode(buffer: Uint8Array): string {
-  return btoa(String.fromCharCode(...buffer))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
 }
 
 // Helper function to generate code challenge
 async function generateCodeChallenge(codeVerifier: string): Promise<string> {
-  const hash = await sha256(codeVerifier);
-  return base64urlEncode(hash);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(new Uint8Array(hash));
 }
 
-// Only start the server if this file is being run directly
+// Helper function to base64url encode
+function base64UrlEncode(buffer: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...buffer));
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// Export the handler directly
+export const handler = (req: Request): Promise<Response> => handleRequest(req);
+
+// Start server if this file is run directly
 if (import.meta.main) {
-  serve(handleRequest);
+  serve(handler);
 }
