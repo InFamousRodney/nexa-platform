@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "lib": ["esnext", "dom", "dom.iterable", "dom.asynciterable"],
+    "skipLibCheck": true,
+    "noLib": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/shared/*": ["./_shared/*"]
+    },
+    "typeRoots": ["./_shared/types"]
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx",
+    "_shared/types/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
