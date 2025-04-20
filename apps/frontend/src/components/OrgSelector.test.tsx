@@ -88,7 +88,7 @@ describe('OrgSelector', () => {
     });
 
     const { getByText } = render(<OrgSelector />);
-    expect(getByText('Loading organizations...')).toBeInTheDocument();
+    expect(getByText('Loading organizations...')).toBeDefined();
   });
 
   it('should render error state', () => {
@@ -99,15 +99,15 @@ describe('OrgSelector', () => {
     });
 
     const { getByText } = render(<OrgSelector />);
-    expect(getByText('Error loading organizations: Test error')).toBeInTheDocument();
+    expect(getByText('Error loading organizations: Test error')).toBeDefined();
   });
 
   it('should render organizations list', () => {
     const { getByText } = render(<OrgSelector />);
-    expect(getByText('Selected Organization')).toBeInTheDocument();
-    expect(getByText('No organization selected')).toBeInTheDocument();
-    expect(getByText('Connect New Org')).toBeInTheDocument();
-    expect(getByText('Select Organization')).toBeInTheDocument();
+    expect(getByText('Selected Organization')).toBeDefined();
+    expect(getByText('No organization selected')).toBeDefined();
+    expect(getByText('Connect New Org')).toBeDefined();
+    expect(getByText('Select Organization')).toBeDefined();
   });
 
   it('should handle organization selection', () => {
@@ -140,6 +140,6 @@ describe('OrgSelector', () => {
     });
 
     const { getByText } = render(<OrgSelector />);
-    expect(getByText('Connecting...')).toBeInTheDocument();
+    expect(getByText('Connecting...')).toBeDefined();
   });
 }); 

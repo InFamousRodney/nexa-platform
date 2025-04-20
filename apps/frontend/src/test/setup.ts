@@ -1,25 +1,8 @@
-import '@testing-library/jest-dom';
-import { expect, afterEach, vi } from 'vitest';
+import { expect, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
-import * as matchers from '@testing-library/jest-dom/matchers';
-import { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers';
+import '@testing-library/user-event';
 
-declare module 'vitest' {
-  interface Assertion<T = any> extends TestingLibraryMatchers<typeof expect.stringContaining, T> {}
-}
-
-expect.extend(matchers);
-
-// Mock ResizeObserver
-const ResizeObserverMock = vi.fn(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-
-vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-
-// Cleanup after each test case
+// Run cleanup after each test case (e.g. clearing jsdom)
 afterEach(() => {
   cleanup();
 });
