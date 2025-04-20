@@ -40,3 +40,7 @@ pnpm-debug.log*
 
 # Docker compose local volumes (if named consistently)
 nexa_neo4j_data/
+# Local development
+supabase/.env.local
+supabase/debug_logs.md
+supabase/functions/scripts/
